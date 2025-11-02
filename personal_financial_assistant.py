@@ -1,173 +1,105 @@
 import streamlit as st
-import fitz  # PyMuPDF
-import pandas as pd
-import re
+import fitz  # PyMuPDF (much faster)
 import google.generativeai as genai
-from datetime import datetime
+import os
 
-# ===========================
-# 🔐 SET YOUR GEMINI API KEY
-# ===========================
-GOOGLE_API_KEY = "AIzaSyAQlEKIu-QbsZnOIxK1Yaw1JICgWSN9G7o"
-genai.configure(api_key=GOOGLE_API_KEY)
+# ========================
+# 1️⃣ Gemini API Configuration
+# ========================
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# ------------------------------
-# PDF Processing
-# ------------------------------
-def extract_text_from_pdf(uploaded_file):
+if not GEMINI_API_KEY:
+    st.error("⚠️ Gemini API key not found. Please set the GEMINI_API_KEY environment variable.")
+    st.stop()
+
+genai.configure(api_key=GEMINI_API_KEY)
+
+# ========================
+# 2️⃣ Streamlit Page Setup
+# ========================
+st.set_page_config(page_title="Personal Financial Analyzer", layout="wide")
+
+st.markdown("""
+<h1 style="text-align:center; font-size:48px; color:#004d40;">💰 Personal Financial Analyzer</h1>
+<p style="text-align:center; color:#00695c;">AI-powered financial summary for your UPI/Bank statements</p>
+""", unsafe_allow_html=True)
+
+# ========================
+# 3️⃣ PDF Extraction (FAST)
+# ========================
+@st.cache_data(show_spinner=False)
+def extract_text_from_pdf(file_bytes):
+    """Extracts text from PDF bytes using PyMuPDF (fast)."""
+    text = ""
     try:
-        with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-            return "\n".join(page.get_text() for page in doc)
+        with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+            for page in doc:
+                text += page.get_text("text")
     except Exception as e:
-        st.error(f"Failed to read PDF: {str(e)}")
-        return None
+        st.error(f"❌ PDF extraction failed: {e}")
+    return text.strip()
 
-# ------------------------------
-# Transaction Parsing
-# ------------------------------
-def parse_transactions(text):
-    if not text:
-        return pd.DataFrame()
-
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
-    transactions = []
-    current_trans = {}
-
-    for line in lines:
-        date_match = re.match(r'(\d{2}[/-]\d{2}[/-]\d{4})|(\d{2} \w{3} \d{4})', line)
-        if date_match:
-            if current_trans:
-                transactions.append(current_trans)
-            current_trans = {
-                'Date': date_match.group(),
-                'Description': line[len(date_match.group()):].strip(),
-                'Amount': None
-            }
-        elif current_trans:
-            amount_match = re.search(r'(?:INR|Rs|₹)\s*([\d,]+\.\d{2})', line)
-            if amount_match:
-                current_trans['Amount'] = float(amount_match.group(1).replace(',', ''))
-            else:
-                current_trans['Description'] += " " + line
-
-    if current_trans:
-        transactions.append(current_trans)
-
-    return pd.DataFrame(transactions)
-
-# ------------------------------
-# Categorization
-# ------------------------------
-DEFAULT_CATEGORIES = {
-    'Food': ['swiggy', 'zomato', 'food', 'zepto', 'bigbasket', 'dominos', 'pizza', 'kfc', 'mcdonalds', 'burger king', 'starbucks'],
-    'Travel': ['uber', 'ola', 'travel', 'rapido', 'suncityfuels', 'aswini automobiles'],
-    'Shopping': ['amazon', 'flipkart', 'meesho', 'myntra', 'shopping', 'v mart', 'dmart', 'croma', 'reliance digital'],
-    'Entertainment': ['netflix', 'spotify', 'hotstar', 'cinemas', 'pvr', 'inox'],
-    'Bills': ['electricity', 'water', 'gas', 'bills', 'paytm', 'phonepe', 'lic', 'google india'],
-    'Health': ['pharmacy', 'doctor', 'health', 'medicine'],
-    'Friends & Family': ['gift', 'friends', 'family'],
-    'Salary': ['salary', 'income', 'pay'],
-    'Others': []
-}
-
-def categorize_transactions(df, categories):
-    if df.empty:
-        return df
-
-    def get_category(description):
-        desc = description.lower()
-        for category, keywords in categories.items():
-            if any(keyword in desc for keyword in keywords):
-                return category
-        return "Others"
-
-    df['Category'] = df['Description'].apply(get_category)
-    return df
-
-# ------------------------------
-# Gemini AI Recommendations
-# ------------------------------
-def generate_gemini_recommendations(df):
-    if df.empty:
-        return "No transactions to analyze."
-
+# ========================
+# 4️⃣ Gemini AI Analysis
+# ========================
+@st.cache_data(show_spinner=False)
+def analyze_with_gemini(text):
+    """Send summarized text to Gemini for quick insights."""
     try:
-        # Use a sample to reduce input tokens
-        sample_df = df.sample(min(len(df), 10))
-        sample_csv = sample_df.to_csv(index=False)
+        if len(text) > 20000:
+            text = text[:20000]  # limit tokens for speed
 
-        model = genai.GenerativeModel("models/gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
         prompt = f"""
-Analyze the following bank transaction data and provide:
+You are an expert financial analyst.
+Analyze the following transaction data and provide a short, structured report in markdown.
 
-- A brief spending summary
-- 2 interesting insights
-- 2 short budgeting tips
+Data:
+{text}
 
-Data (CSV):
-{sample_csv}
-"""
+Output should include:
+- Key monthly spending summary
+- Expense categories (approximate)
+- Notable patterns or trends
+- 3 short financial recommendations
+        """
 
         response = model.generate_content(prompt)
-        return response.text
+        return response.text.strip() if response else "⚠️ No response received from Gemini."
     except Exception as e:
-        return f"❌ Error generating AI insights: {e}"
+        return f"⚠️ Error: {e}"
 
+# ========================
+# 5️⃣ File Upload + Analysis
+# ========================
+uploaded_file = st.file_uploader("📤 Upload your UPI/Bank Statement PDF", type=["pdf"])
 
-# ------------------------------
-# Main App
-# ------------------------------
-def main():
-    st.set_page_config(page_title="UPI Analyzer Pro", layout="wide")
-    st.title("📊 UPI Analyzer Pro with Smart Insights")
+if uploaded_file:
+    with st.spinner("📄 Extracting text from your statement..."):
+        pdf_bytes = uploaded_file.read()
+        text = extract_text_from_pdf(pdf_bytes)
 
-    uploaded_file = st.file_uploader("Upload UPI Statement PDF", type="pdf")
+    if not text:
+        st.error("No readable text found in PDF. Try exporting a text-based statement.")
+        st.stop()
 
-    if uploaded_file:
-        with st.spinner("Extracting text..."):
-            raw_text = extract_text_from_pdf(uploaded_file)
+    st.success("✅ Text extracted successfully!")
 
-        if not raw_text:
-            return
+    with st.expander("📜 View Extracted Text (for reference)", expanded=False):
+        st.text_area("Extracted Text", text[:2000] + "..." if len(text) > 2000 else text, height=200)
 
-        with st.spinner("Parsing transactions..."):
-            df = parse_transactions(raw_text)
+    with st.spinner("🤖 Analyzing your financial statement using Gemini..."):
+        insights = analyze_with_gemini(text)
 
-        if df.empty:
-            st.error("No transactions found. Please check your PDF.")
-            return
+    st.markdown("## 🧠 AI Financial Report")
+    st.markdown(insights, unsafe_allow_html=True)
 
-        with st.spinner("Categorizing..."):
-            categorized_df = categorize_transactions(df, DEFAULT_CATEGORIES)
-            categorized_df['Date'] = pd.to_datetime(categorized_df['Date'], dayfirst=True, errors='coerce')
-            categorized_df = categorized_df.dropna(subset=['Date'])
+    st.download_button(
+        "📥 Download Financial Report",
+        data=insights,
+        file_name="financial_analysis.md",
+        mime="text/markdown"
+    )
 
-        st.success(f"Processed {len(categorized_df)} transactions!")
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Spent", f"₹{categorized_df['Amount'].sum():,.2f}")
-        col2.metric("Transactions", len(categorized_df))
-        col3.metric("Period", f"{categorized_df['Date'].min().strftime('%d %b')} to {categorized_df['Date'].max().strftime('%d %b %Y')}")
-
-        tab1, tab2 = st.tabs(["📄 Transactions", "📈 Insights"])
-
-        with tab1:
-            st.write("### Transaction History")
-            st.dataframe(categorized_df.sort_values(by='Date', ascending=False))
-
-        with tab2:
-            st.write("### Spending by Month")
-            monthly_chart = categorized_df.groupby(pd.to_datetime(categorized_df['Date']).dt.strftime('%b %Y'))['Amount'].sum()
-            st.bar_chart(monthly_chart)
-
-            st.write("### Category-wise Spending")
-            category_chart = categorized_df.groupby('Category')['Amount'].sum().sort_values(ascending=False)
-            st.bar_chart(category_chart)
-
-            st.write("### 🤖 AI-Powered Financial Advice")
-            with st.spinner("Generating AI insights using Gemini..."):
-                insights = generate_gemini_recommendations(categorized_df)
-            st.markdown(insights)
-
-if __name__ == "__main__":
-    main()
+    st.balloons()
