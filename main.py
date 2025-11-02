@@ -29,7 +29,7 @@ def analyze_financial_data(text, api_key):
     """Use Gemini AI to generate a financial analysis"""
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")  # ✅ Updated model name
+        model = genai.GenerativeModel("gemini-2.5-flash")  # ✅ Updated model name
 
         prompt = f"""
 You are a certified financial analyst.
@@ -225,3 +225,4 @@ if uploaded_file and gemini_api_key:
         st.error("❌ Failed to extract text. Please upload a valid PDF.")
 else:
     st.warning("👆 Upload a statement and enter your Gemini API key to start analysis.")
+
