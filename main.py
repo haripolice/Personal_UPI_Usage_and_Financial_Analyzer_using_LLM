@@ -59,7 +59,7 @@ You are a certified financial advisor. Review the following UPI transaction data
 Transaction History:
 {text}
         """
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash-001")
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
@@ -719,4 +719,5 @@ if uploaded_file and gemini_api_key:
 else:
     if page != "Main Analysis":
         st.sidebar.warning("Please upload a PDF and provide your Gemini API key to access this page.")
+
 
