@@ -6,7 +6,7 @@ import os
 # ========================
 # 1️⃣ Gemini API Configuration
 # ========================
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = os.getenv("AIzaSyAQlEKIu-QbsZnOIxK1Yaw1JICgWSN9G7o")
 
 if not GEMINI_API_KEY:
     st.error("⚠️ Gemini API key not found. Please set the GEMINI_API_KEY environment variable.")
