@@ -8,3 +8,9 @@ openai>=1.3.0
 python-dotenv>=1.0.1
 Pillow>=10.0.0
 dateparser>=1.2.0
+streamlit
+PyMuPDF
+pandas
+re
+google.generativeai
+datetime
