@@ -76,7 +76,7 @@ def extract_text_from_pdf(file_path):
 
 def analyze_financial_data(text):
     """Sends extracted text to Google Gemini AI for financial insights."""
-    model = genai.GenerativeModel("learnlm-1.5-pro-experimental")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     prompt = f"""
     Analyze the following Paytm transaction history and generate financial insights:
     {text}
@@ -132,3 +132,4 @@ if uploaded_file is not None:
         st.balloons()
 
     os.remove(file_path)  # Cleanup
+
