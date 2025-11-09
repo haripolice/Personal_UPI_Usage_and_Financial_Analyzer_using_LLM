@@ -49,7 +49,3 @@ streamlit run app.py
 - 📉 Time efficiency of processing  
 - 🤝 User satisfaction  
 
-## 🧑‍💻 Contributors
-**Developed By:** Playboy (Data Scientist)  
-**Mentor:** Nethaji Nirmal G  
-**Approved By:** Aravinth Meganathan  
