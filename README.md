@@ -1,3 +1,14 @@
+---
+title: Personal Financial Analyser
+emoji: 📊
+colorFrom: blue
+colorTo: green
+sdk: streamlit
+sdk_version: 1.28.0
+app_file: app.py
+pinned: false
+---
+
 # 💰 Personal UPI Usage and Financial Analyzer using LLMs
 
 This project is an **AI-powered financial analyzer** that processes UPI transaction PDFs (from Paytm, GPay, PhonePe, etc.) to extract, analyze, and provide **personalized financial insights** using **Google Gemini LLM**.
