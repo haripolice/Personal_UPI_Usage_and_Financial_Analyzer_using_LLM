@@ -1,149 +1,134 @@
 import os
-import tempfile
 import streamlit as st
 import PyPDF2
 import google.generativeai as genai
 
-# ========================
-#  1️⃣  Secure Gemini Setup
-# ========================
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-if not gemini_api_key:
-    st.error("⚠️ Gemini API key not found. Please set the GEMINI_API_KEY environment variable.")
-    st.stop()
+# Set up Google Gemini API Key
+GEMINI_API_KEY = "AIzaSyAQlEKIu-QbsZnOIxK1Yaw1JICgWSN9G7o"
+genai.configure(api_key=GEMINI_API_KEY)
 
-genai.configure(api_key=gemini_api_key)
+# Streamlit UI
+st.set_page_config(page_title="Personal Finance Assistant", page_icon="🤑", layout="wide")
 
-# ========================
-#  2️⃣  Streamlit UI Setup
-# ========================
-st.set_page_config(page_title="Personal Financial Analyzer", layout="wide")
-
-# 🖼️ Background Styling
+# Custom CSS for Styling
 st.markdown("""
-<style>
-[data-testid="stAppViewContainer"] {
-    background-image: url("https://hougumlaw.com/wp-content/uploads/2016/05/light-website-backgrounds-light-color-background-images-light-color-background-images-for-website-1024x640.jpg");
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-}
-[data-testid="stHeader"] { background: rgba(0,0,0,0); }
-.main-title { text-align:center; font-size:50px; font-weight:bold; color:#000; }
-.sub-title { text-align:center; font-size:18px; color:#000; margin-bottom:20px; }
-.result-card, .success-banner {
-    background: rgba(0,150,136,0.1); padding: 15px; border-radius: 8px;
-    margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,150,136,0.2);
-}
-.success-banner {
-    font-size: 18px; text-align: center; font-weight: bold; margin-top: 15px;
-}
-</style>
+    <style>
+    .main-title {
+        text-align: center;
+        font-size: 34px;
+        font-weight: bold;
+        color: #4CAF50;
+        text-shadow: 2px 2px 5px rgba(76, 175, 80, 0.4);
+    }
+    .sub-title {
+        text-align: center;
+        font-size: 18px;
+        color: #ddd;
+        margin-bottom: 20px;
+    }
+    .stButton button {
+        background: linear-gradient(to right, #4CAF50, #388E3C);
+        color: white;
+        font-size: 18px;
+        padding: 10px 20px;
+        border-radius: 8px;
+        transition: 0.3s;
+    }
+    .stButton button:hover {
+        background: linear-gradient(to right, #388E3C, #2E7D32);
+    }
+    .result-card {
+        background: rgba(0, 150, 136, 0.1);
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        box-shadow: 0px 2px 8px rgba(0, 150, 136, 0.2);
+    }
+    .success-banner {
+        background: linear-gradient(to right, #2E7D32, #1B5E20);
+        color: white;
+        padding: 15px;
+        font-size: 18px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: bold;
+        margin-top: 15px;
+        box-shadow: 0px 2px 8px rgba(0, 150, 136, 0.5);
+    }
+    </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<h1 class="main-title">Personal Financial Analyzer</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-title">Powered By AI</p>', unsafe_allow_html=True)
+# Main Title
+st.markdown('<h1 class="main-title">🤑 Personal Finance Assistant</h1>', unsafe_allow_html=True)
+st.markdown('<p class="sub-title">Upload your Transaction History PDF for Financial Insights eg:-Paytm </p>', unsafe_allow_html=True)
 
-# ========================
-#  3️⃣  Helper Functions
-# ========================
+# Upload PDF File
+uploaded_file = st.file_uploader("📂 Upload paytm statement PDF File", type=["pdf"], help="Only PDF files are supported")
 
 def extract_text_from_pdf(file_path):
-    """Extracts text from PDF using PyPDF2."""
+    """Extracts text from the uploaded PDF file."""
     text = ""
-    try:
-        with open(file_path, "rb") as pdf_file:
-            reader = PyPDF2.PdfReader(pdf_file)
-            for page in reader.pages:
-                text += page.extract_text() or ""
-    except Exception as e:
-        st.error(f"❌ PDF extraction failed: {e}")
-        return ""
+    with open(file_path, "rb") as pdf_file:
+        reader = PyPDF2.PdfReader(pdf_file)
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
     return text.strip()
 
-@st.cache_data(show_spinner=False)
 def analyze_financial_data(text):
-    """Send extracted text to Gemini for analysis."""
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
+    """Calling Google Gemini AI for financial insights."""
+    model = genai.GenerativeModel("learnlm-1.5-pro-experimental")
+    prompt = f"""
+    Analyze the following Paytm transaction history and generate financial insights:
+    {text}
+    Provide a detailed breakdown in the following format:
+    *Financial Insights for [User Name]*
+    *Key Details:*
+    - *Overall Monthly Income & Expenses:*
+      - Month: [Month]
+      - Income: ₹[Amount]
+      - Expenses: ₹[Amount]
+    - *Unnecessary Expenses Analysis:*
+      - Expense Category: [Category Name]
+      - Amount: ₹[Amount]
+      - Recommendation: [Suggestion]
+    - *Savings Percentage Calculation:*
+      - Savings Percentage: [Percentage] %
+    - *Expense Trend Analysis:*
+      - Notable Trends: [Trend Details]
+    - *Cost Control Recommendations:*
+      - Suggestion: [Detailed Suggestion]
+    - *Category-Wise Spending Breakdown:*
+      - Category: [Category Name] - ₹[Amount]
+    """
+    response = model.generate_content(prompt)
+    return response.text.strip() if response else "⚠ Error processing financial data."
 
-        prompt = f"""
-You are a financial data analyst AI.
-Analyze this UPI/Bank transaction statement and provide structured markdown insights.
+# Processing Section
+if uploaded_file is not None:
+    file_path = f"temp_{uploaded_file.name}"
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.read())
 
-Data:
-{text}
+    st.success("✅ File uploaded successfully!")
 
-Please output in **structured markdown**:
-
-# Financial Insights Summary
-
-## Monthly Overview
-| Month | Income (₹) | Expenses (₹) | Savings (%) |
-
-
-## Trends
-- [Trend observations]
-
-## Recommendations
-- [Cost control tips]
-
-## Category Breakdown
-| Category | Amount (₹) |
-|-----------|------------|
-        """
-
-        response = model.generate_content(prompt)
-        return response.text.strip() if response else "⚠️ AI did not return a response."
-
-    except Exception as e:
-        return f"⚠️ Error while analyzing data: {e}"
-
-# ========================
-#  4️⃣  File Upload + Processing
-# ========================
-uploaded_file = st.file_uploader(
-    "Upload your UPI/Bank Statement PDF for Insights",
-    type=["pdf"],
-    help="Only text-based (non-scanned) PDFs are supported."
-)
-
-if uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        temp_path = tmp_file.name
-
-
-
-    with st.spinner("📄 Extracting text from PDF..."):
-        extracted_text = extract_text_from_pdf(temp_path)
+    with st.spinner("📄 Extracting text from document..."):
+        extracted_text = extract_text_from_pdf(file_path)
 
     if not extracted_text:
-        st.error("⚠️ Could not extract text. Try using an OCR tool on your statement first.")
+        st.error("⚠ Failed to extract text. Ensure the document is not a proper PDF format.")
     else:
-        #st.info("")
-        st.markdown("""
-    <div style="background: rgba(0, 150, 136, 0.1); color:black; padding:12px; border-radius:8px;">
-         File Uploaded And Text Extracted Successfully...
-    </div>
-    """, unsafe_allow_html=True)
-
-        progress = st.progress(10)
-        with st.spinner("AI is analyzing your financial data..."):
+        progress_bar = st.progress(0)
+        with st.spinner("analyzing your financial data..."):
             insights = analyze_financial_data(extracted_text)
-        progress.progress(100)
 
-        #st.subheader("📄 Financial Analysis Report")
-        st.markdown(insights, unsafe_allow_html=True)
+        progress_bar.progress(100)
 
-        st.download_button(
-            "📥 Download Report (Markdown)",
-            data=insights,
-            file_name="financial_report.txt",
-            mime="text/markdown"
-        )
+        st.subheader("📊 Financial Insights Report")
+        st.markdown(f'<div class="result-card"><b>📄 Financial Report for {uploaded_file.name}</b></div>', unsafe_allow_html=True)
 
-        st.markdown('<div class="success-banner">Report Generated! Optimize Your Spendings and Savings...</div>', unsafe_allow_html=True)
+        st.write(insights)
+
+        st.markdown('<div class="success-banner">🎉 Analysis Completed!🚀</div>', unsafe_allow_html=True)
         st.balloons()
 
-    os.remove(temp_path)
+    os.remove(file_path)  # Cleanup
